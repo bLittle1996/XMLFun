@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>LTC Route Information</title>
+</head>
+<body>
+	<div class="controls" id="top">
+		<form class="input-group" onsubmit="event.preventDefault()">
+			<input type="text" id="route-number" placeholder="Leave blank or enter route number (01, 04, 17, etc)">
+			<button onclick="renderXSLT()">Search</button>
+		</form>
+	</div>
+	<div id="target"></div>
+</body>
+<style>
+
+	.to-top {
+		text-align: center;
+	}
+
+	.to-top a {
+		color: black;
+	}
+
+	#target {
+		width: 70%;
+		margin: 0 auto;
+	}
+
+	.controls {
+		width: 70%;
+		margin: 0 auto;
+	}
+
+	.input-group {
+		display: flex;
+		width: 100%;
+	}
+
+	input {
+		width: 90%;
+		padding: 5px;
+		border: none;
+		border-bottom: solid 1px #cecece;
+		outline: none;
+	}
+
+	button {
+		flex-grow: 1;
+	}
+
+	.stop {
+		width: 100%;
+		display: flex;
+		justify-content: space-around;
+		text-align: left;
+		margin-left: 1em;
+		margin-bottom: 1em;
+	}
+
+	.stop-number, .stop-name, .stop-routes, .stop-location {
+		width: 25%;
+	}
+
+	.ul {
+		border-bottom: solid 1px black;
+		font-weight: bold;
+		text-align: center;
+		margin-left: 0;
+	}
+</style>
+<script>
+"use strict";
+
+//tested on Chrome on Ubuntu 16.04 LTS. Served with nginx.
+//view a live version at ben-littleton.com/xmlproject.html
+function loadXMLDocument(file) {
+	//return a promise for async operation
+	//not a fan of non-async XmlHttpRequests
+	return new Promise(function (resolve, reject) {
+		var xhr = void 0;
+		//for ie
+		if (window.ActiveXObject) {
+			xhr = new ActiveXObject("Msxml2.XMLHTTP");
+		} else {
+			xhr = new XMLHttpRequest();
+		}
+		xhr.open("GET", file);
+		xhr.onload = function (response) {
+			if (response.currentTarget.status >= 200 && response.currentTarget.status < 300) resolve(response.currentTarget);else reject(response.currentTarget);
+		};
+		xhr.send();
+	});
+}
+function renderXSLT() {
+	var xml = void 0,
+	    xslt = void 0;
+	loadXMLDocument('ltcstops.xml').then(function (resolve) {
+		xml = resolve.responseXML;
+		loadXMLDocument('ltcstops.xslt').then(function (resolve) {
+			xslt = new DOMParser().parseFromString(resolve.responseText, 'text/xml');
+			var route = document.getElementById('route-number').value;
+			//weird ie stuff
+			if (window.ActiveXObject || resolve.responseType == "msxml-document") {
+				var template = new ActiveXObject('Msxml2.XslTemplate.6.0');
+				template.stylesheet = xslt;
+				var proc = template.createProcessor();
+				proc.input = xml;
+				proc.addParameter("route", route);
+				proc.transform();
+				document.getElementById('target').innerHTML = proc.output;
+			} else {
+				var processor = new XSLTProcessor();
+				processor.importStylesheet(xslt); //load the stylesheet to use
+				processor.setParameter(null, 'route', route); //set our route parameter in that stylesheet
+				var result = processor.transformToFragment(xml, document); //apply the stylesheet to the xml doc
+				document.getElementById('target').innerHTML = ''; //clear the existing content
+				document.getElementById('target').appendChild(result); //append the styled xml doc
+			}
+		}, function (reject) {
+			return console.error(reject);
+		});
+	}, function (reject) {
+		return console.error(reject);
+	});
+}
+</script>
+</html>
